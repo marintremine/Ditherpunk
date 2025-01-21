@@ -1,6 +1,7 @@
 use image::io::Reader as ImageReader;
-use image::{Rgb, RgbImage};
-use std::collections::HashMap;
+use image::{Pixel, Rgb, RgbImage};
+use rand::Rng;
+
 
 /// Lit une image à partir d'un chemin et la convertit en mode RGB8
 pub fn charger_image_rgb8(path: &str) -> RgbImage {
@@ -10,11 +11,14 @@ pub fn charger_image_rgb8(path: &str) -> RgbImage {
             Err(err) => {
                 eprintln!("Erreur lors de la conversion de l'image : {}", err);
                 std::process::exit(1); // Quitte le programme avec un code d'erreur
+                
+                // Return a default RgbImage to satisfy the return type
             }
         },
         Err(err) => {
             eprintln!("Erreur lors de l'ouverture du fichier : {}", err);
             std::process::exit(1); // Quitte le programme avec un code d'erreur
+
         }
     }
 }
@@ -73,29 +77,66 @@ pub fn monochrome_par_seuillage(image_rgb8: &mut RgbImage, couleur_1: Rgb<u8>, c
     }
 }
 
-/// Créer un dictionnaire avec des couleurs principales
-pub fn creer_dictionnaire_couleurs() -> HashMap<String, Rgb<u8>> {
-    let mut couleurs = HashMap::new();
-    couleurs.insert("rouge".to_string(), Rgb([255, 0, 0]));
-    couleurs.insert("vert".to_string(), Rgb([0, 255, 0]));
-    couleurs.insert("bleu".to_string(), Rgb([0, 0, 255]));
-    couleurs.insert("jaune".to_string(), Rgb([255, 255, 0]));
-    couleurs.insert("cyan".to_string(), Rgb([0, 255, 255]));
-    couleurs.insert("magenta".to_string(), Rgb([255, 0, 255]));
-    couleurs.insert("noir".to_string(), Rgb([0, 0, 0]));
-    couleurs.insert("blanc".to_string(), Rgb([255, 255, 255]));
-    
-    couleurs
+pub fn monochrome_par_palette(image_rgb8: &mut RgbImage, couleurs_palette: Vec<Rgb<u8>>) {
+    // Parcourir tous les pixels de l'image
+    for (_x, _y, pixel) in image_rgb8.enumerate_pixels_mut() {
+        let mut distance_min = std::f32::MAX;
+        let mut couleur_plus_proche = *pixel;
+        for couleur in &couleurs_palette {
+            let distance = distance_couleurs(pixel, couleur);
+            if distance < distance_min {
+                distance_min = distance;
+                couleur_plus_proche = *couleur;
+            }
+        }
+        // Appliquer la couleur la plus proche au pixel correspondant dans l'image monochrome
+        *pixel = couleur_plus_proche;
+    }
 }
 
-/// Convertir le nom de la couleur en une valeur `Rgb`
-/// Si la couleur n'existe pas dans le dictionnaire, cela quitte le programme avec une erreur
-pub fn obtenir_couleur_par_nom(couleur: &str, couleurs: &HashMap<String, Rgb<u8>>) -> Rgb<u8> {
-    match couleurs.get(&couleur.to_lowercase()) {
-        Some(couleur_rgb) => *couleur_rgb, // Retourne la couleur trouvée
-        None => {
-            eprintln!("Erreur : La couleur '{}' n'est pas valide", couleur);
-            std::process::exit(1); // Quitte le programme avec un code d'erreur
+/// Calculer la distance euclidienne entre deux couleurs RGB
+pub fn distance_couleurs(couleur1: &Rgb<u8>, couleur2: &Rgb<u8>) -> f32 {
+    let r_diff = couleur1[0] as f32 - couleur2[0] as f32;
+    let g_diff = couleur1[1] as f32 - couleur2[1] as f32;
+    let b_diff = couleur1[2] as f32 - couleur2[2] as f32;
+
+    (r_diff.powi(2) + g_diff.powi(2) + b_diff.powi(2)).sqrt()
+}
+
+/// Créer une liste avec des couleurs principales
+pub fn creer_liste_couleurs() -> Vec<(&'static str, Rgb<u8>)> {
+    vec![
+        ("noir", Rgb([0, 0, 0])),
+        ("blanc", Rgb([255, 255, 255])),
+        ("rouge", Rgb([255, 0, 0])),
+        ("vert", Rgb([0, 255, 0])),
+        ("bleu", Rgb([0, 0, 255])),
+        ("jaune", Rgb([255, 255, 0])),
+        ("magenta", Rgb([255, 0, 255])),
+        ("cyan", Rgb([0, 255, 255])),
+    ]
+}
+
+/// Obtenir une couleur par son nom à partir de la liste
+pub fn obtenir_couleur_par_nom(nom: &str, liste_couleurs: &Vec<(&'static str, Rgb<u8>)>) -> Rgb<u8> {
+    for (nom_couleur, rgb) in liste_couleurs {
+        if *nom_couleur == nom {
+            return *rgb;
+        }
+    }
+    eprintln!("Erreur : La couleur '{}' n'est pas disponible.", nom);
+    std::process::exit(1); // Quitte le programme avec un code d'erreur
+}
+
+/// Appliquer un tramage aléatoire sur une image RGB8
+pub fn tramage_aléatoire(image_rgb8: &mut RgbImage) {
+    for (_x, _y, pixel) in image_rgb8.enumerate_pixels_mut() {
+        let luminosite = luminosite_pixel(pixel);
+        let seuil: f32 = rand::thread_rng().gen();
+        if luminosite / 255.0 > seuil {
+            *pixel = Rgb([255, 255, 255]);
+        } else {
+            *pixel = Rgb([0, 0, 0]);
         }
     }
 }

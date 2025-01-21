@@ -26,6 +26,7 @@ struct DitherArgs {
 enum Mode {
     Seuil(OptsSeuil),
     Palette(OptsPalette),
+    Dithering(OptsDithering),
 }
 
 #[derive(Debug, Clone, PartialEq, FromArgs)]
@@ -51,6 +52,13 @@ struct OptsPalette {
     n_couleurs: usize
 }
 
+#[derive(Debug, Clone, PartialEq, FromArgs)]
+#[argh(subcommand, name="dithering")]
+/// Rendu de l’image par dithering.
+struct OptsDithering {
+    // Ajouter des options pour le mode Dithering ici...
+}
+
 fn main() {
     let args: DitherArgs = argh::from_env();
     let path_in = args.input;
@@ -72,7 +80,7 @@ fn main() {
 
     match &args.mode {
         Mode::Seuil(opts_seuil) => {
-            let couleurs = utils::creer_dictionnaire_couleurs();
+            let couleurs = utils::creer_liste_couleurs();
             let couleur_1_rgb = if let Some(couleur) = &opts_seuil.couleur_1 {
                 utils::obtenir_couleur_par_nom(couleur, &couleurs)
             }
@@ -95,7 +103,22 @@ fn main() {
             // Si le mode est Palette, gérer la palette
             println!("Mode palette avec {} couleurs", opts_palette.n_couleurs);
             // Logique pour traiter le mode palette ici...
+
+            let couleurs = utils::creer_liste_couleurs();
+            let mut couleurs_palette = vec![];
+            for i in 0..opts_palette.n_couleurs {
+                couleurs_palette.push(couleurs[i].1);
+            }
+            println!("Les couleurs de la palette sont : {:?}", couleurs_palette);
+
+            utils::monochrome_par_palette(&mut image_rgb8, couleurs_palette); // Question 9
         },
+        Mode::Dithering(_opts_dithering) => {
+            // Si le mode est Dithering, gérer le dithering
+            println!("Mode dithering");
+            
+            utils::tramage_aléatoire(&mut image_rgb8); // Question 12
+        }
     }
 
     utils::sauvegarder_image_rgb8(&image_rgb8, &path_out); // Question 3
