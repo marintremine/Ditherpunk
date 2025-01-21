@@ -1,7 +1,8 @@
+mod utils;
 use argh::FromArgs;
-use image::io::Reader as ImageReader;
-use image::DynamicImage;
-use image::{Rgb, RgbImage};
+//use image::io::Reader as ImageReader;
+//use image::DynamicImage;
+//use image::{Rgb, RgbImage};
 
 #[derive(Debug, Clone, PartialEq, FromArgs)]
 /// Convertit une image en monochrome ou vers une palette réduite de couleurs.
@@ -17,7 +18,7 @@ struct DitherArgs {
 
     /// le mode d’opération
     #[argh(subcommand)]
-    mode: Mode
+    mode: Mode,
 }
 
 #[derive(Debug, Clone, PartialEq, FromArgs)]
@@ -30,8 +31,15 @@ enum Mode {
 #[derive(Debug, Clone, PartialEq, FromArgs)]
 #[argh(subcommand, name="seuil")]
 /// Rendu de l’image par seuillage monochrome.
-struct OptsSeuil {}
+struct OptsSeuil {
+    /// la couleur 1 personnalisée (optionnelle)
+    #[argh(option)]
+    couleur_1: Option<String>,
 
+    /// la couleur 2 personnalisée (optionnelle)
+    #[argh(option)]
+    couleur_2: Option<String>,
+}
 
 #[derive(Debug, Clone, PartialEq, FromArgs)]
 #[argh(subcommand, name="palette")]
@@ -49,38 +57,46 @@ fn main() {
     println!("path_in: {}", path_in);
     let path_out = args.output.unwrap_or("output/out.png".to_string());
     println!("path_out: {}", path_out);
-    // sandbox
     
-    let img = match ImageReader::open(path_in) {
-        Ok(reader) => reader.decode(),
-        Err(err) => {
-            eprintln!("Failed to open image: {}", err);
-            return;
-        }
-    };
+    let mut image_rgb8 = utils::charger_image_rgb8(&path_in); // Question 2
 
-    // Convertir l'image en mode RGB8
-    let mut rgb_image = img.unwrap().to_rgb8();
-
-    // Parcourir tous les pixels de l'image
-    for (x, y, pixel) in rgb_image.enumerate_pixels_mut() {
-        // Passer un pixel sur deux en blanc
-        if (x + y) % 2 == 0 {
-            *pixel = Rgb([255, 255, 255]);
-        }
-    }
-
-    // Sauvegarder l'image convertie
-    rgb_image.save(path_out).unwrap();
-
-    //rgb_image.save("output_image.png")?;
-    println!("L'image a été convertie en mode RGB8 avec succès.");
-
-    // Accéder au pixel à la position (32, 52)
-    let pixel = rgb_image.get_pixel(32, 51);
-
-    // Afficher la couleur du pixel dans le terminal
+    let pixel = utils::recuperer_pixel(&image_rgb8, 32, 52); // Question 4
     println!("La couleur du pixel (32, 52) est : {:?}", pixel);
 
+    //utils::transformer_pixels_un_sur_deux(&mut image_rgb8); // Question 5
 
+    let luminosite_pixel = utils::luminosite_pixel(&pixel); // Question 6
+    println!("La luminosité du pixel (32, 52) est : {:?}", luminosite_pixel);
+
+    //utils::monochrome_par_seuillage(&mut image_rgb8); // Question 7
+
+    match &args.mode {
+        Mode::Seuil(opts_seuil) => {
+            let couleurs = utils::creer_dictionnaire_couleurs();
+            let couleur_1_rgb = if let Some(couleur) = &opts_seuil.couleur_1 {
+                utils::obtenir_couleur_par_nom(couleur, &couleurs)
+            }
+            else {
+                utils::obtenir_couleur_par_nom("noir", &couleurs) // valeur par défaut
+            };
+            println!("La couleur 1 est : {:?}", couleur_1_rgb);
+
+            let couleur_2_rgb = if let Some(couleur) = &opts_seuil.couleur_2 {
+                utils::obtenir_couleur_par_nom(couleur, &couleurs)
+            }
+            else {
+                utils::obtenir_couleur_par_nom("blanc", &couleurs) // valeur par défaut
+            };
+            println!("La couleur 2 est : {:?}", couleur_2_rgb);
+
+            utils::monochrome_par_seuillage(&mut image_rgb8, couleur_1_rgb, couleur_2_rgb); // Question 8
+        },
+        Mode::Palette(opts_palette) => {
+            // Si le mode est Palette, gérer la palette
+            println!("Mode palette avec {} couleurs", opts_palette.n_couleurs);
+            // Logique pour traiter le mode palette ici...
+        },
+    }
+
+    utils::sauvegarder_image_rgb8(&image_rgb8, &path_out); // Question 3
 }
