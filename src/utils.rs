@@ -140,3 +140,52 @@ pub fn tramage_aléatoire(image_rgb8: &mut RgbImage) {
         }
     }
 }
+
+/// Générer une matrice de Bayer de taille 2^order
+pub fn generer_matrice_bayer(order: u32) -> Vec<Vec<u32>> {
+    if order == 0 {
+        return vec![vec![0]];
+    }
+
+    let matrice_precedente = generer_matrice_bayer(order - 1);
+    let taille = matrice_precedente.len();
+    let nouvelle_taille = taille * 2;
+    let mut matrice = vec![vec![0; nouvelle_taille]; nouvelle_taille];
+
+    for i in 0..taille {
+        for j in 0..taille {
+            let valeur_base = matrice_precedente[i][j] * 4;
+            matrice[i][j] = valeur_base;
+            matrice[i][j + taille] = valeur_base + 2;
+            matrice[i + taille][j] = valeur_base + 3;
+            matrice[i + taille][j + taille] = valeur_base + 1;
+        }
+    }
+
+    matrice
+}
+
+/// Afficher une matrice d'entiers
+pub fn afficher_matrice(matrice: &Vec<Vec<u32>>) {
+    for ligne in matrice {
+        for valeur in ligne {
+            print!("{} ", valeur);
+        }
+        println!();
+    }
+}
+
+/// Appliquer un tramage ordonné sur une image RGB8 en utilisant une matrice de Bayer
+pub fn tramage_ordonne(image_rgb8: &mut RgbImage, matrice_bayer: &Vec<Vec<u32>>) {
+    let taille = matrice_bayer.len();
+    for (x, y, pixel) in image_rgb8.enumerate_pixels_mut() {
+        let luminosite = luminosite_pixel(pixel);
+        let i = x as usize % taille;
+        let j = y as usize % taille;
+        if luminosite / 255.0 > matrice_bayer[i][j] as f32 / (taille * taille) as f32 {
+            *pixel = Rgb([255, 255, 255]);
+        } else {
+            *pixel = Rgb([0, 0, 0]);
+        }
+    }
+}

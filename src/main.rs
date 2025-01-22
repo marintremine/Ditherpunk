@@ -1,4 +1,7 @@
 mod utils;
+use std::str;
+use std::str::FromStr;
+
 use argh::FromArgs;
 //use image::io::Reader as ImageReader;
 //use image::DynamicImage;
@@ -52,12 +55,34 @@ struct OptsPalette {
     n_couleurs: usize
 }
 
-#[derive(Debug, Clone, PartialEq, FromArgs)]
-#[argh(subcommand, name="dithering")]
-/// Rendu de l’image par dithering.
-struct OptsDithering {
-    // Ajouter des options pour le mode Dithering ici...
+#[derive(Debug, Clone, PartialEq)]
+pub enum Methode {
+    Aleatoire,
+    Ordonne,
 }
+
+// Implémentation de FromStr pour Enum
+impl FromStr for Methode {
+    type Err = String;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s.to_lowercase().as_str() {
+            "aleatoire" => Ok(Methode::Aleatoire),
+            "ordonne" => Ok(Methode::Ordonne),
+            _ => Err(format!("Méthode de dithering invalide: {}", s)),
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, FromArgs)]
+#[argh(subcommand, name = "dithering")]
+/// Rendu de l'image par dithering.
+pub struct OptsDithering {
+    /// la méthode de tramage à utiliser
+    #[argh(option)]
+    tramage: Methode,
+}
+
 
 fn main() {
     let args: DitherArgs = argh::from_env();
@@ -114,10 +139,22 @@ fn main() {
             utils::monochrome_par_palette(&mut image_rgb8, couleurs_palette); // Question 9
         },
         Mode::Dithering(_opts_dithering) => {
-            // Si le mode est Dithering, gérer le dithering
+           
             println!("Mode dithering");
+            match _opts_dithering.tramage {
+                Methode::Aleatoire => {
+                    println!("Méthode de dithering : Aleatoire");
+                    utils::tramage_aléatoire(&mut image_rgb8); // Question 12
+                },
+                Methode::Ordonne => {
+                    println!("Méthode de dithering : Ordonne");
+                    let matrice = utils::generer_matrice_bayer(2);
+                    utils::afficher_matrice(&matrice);
+                    utils::tramage_ordonne(&mut image_rgb8, &matrice); // Question 13
+                }
+            }
             
-            utils::tramage_aléatoire(&mut image_rgb8); // Question 12
+            
         }
     }
 
