@@ -60,48 +60,22 @@ pub fn luminosite_pixel(pixel: &Rgb<u8>) -> f32 {
     0.2126 * pixel[0] as f32 + 0.7152 * pixel[1] as f32 + 0.0722 * pixel[2] as f32
 }
 
-// Fonction de seuillage monochrome
-pub fn monochrome_par_seuillage(image_rgb8: &mut RgbImage, couleur_1: Rgb<u8>, couleur_2: Rgb<u8>) {
-    // Parcourir tous les pixels de l'image
-    for (_x, _y, pixel) in image_rgb8.enumerate_pixels_mut() {
-        // Calculer la luminosité du pixel
-        let luminosite = luminosite_pixel(pixel);
+// // Fonction de seuillage monochrome
+// pub fn monochrome_par_seuillage(image_rgb8: &mut RgbImage) {
+//     // Parcourir tous les pixels de l'image
+//     for (_x, _y, pixel) in image_rgb8.enumerate_pixels_mut() {
+//         // Calculer la luminosité du pixel
+//         let luminosite = luminosite_pixel(pixel);
         
-        // Si la luminosité est supérieure à 128 (seuillage à 50%), appliquer couleur_1, sinon couleur_2
-        if luminosite > 128.0 {
-            *pixel = couleur_1;
-        }
-        else {
-            *pixel = couleur_2;
-        }
-    }
-}
-
-pub fn monochrome_par_palette(image_rgb8: &mut RgbImage, couleurs_palette: Vec<Rgb<u8>>) {
-    // Parcourir tous les pixels de l'image
-    for (_x, _y, pixel) in image_rgb8.enumerate_pixels_mut() {
-        let mut distance_min = std::f32::MAX;
-        let mut couleur_plus_proche = *pixel;
-        for couleur in &couleurs_palette {
-            let distance = distance_couleurs(pixel, couleur);
-            if distance < distance_min {
-                distance_min = distance;
-                couleur_plus_proche = *couleur;
-            }
-        }
-        // Appliquer la couleur la plus proche au pixel correspondant dans l'image monochrome
-        *pixel = couleur_plus_proche;
-    }
-}
-
-/// Calculer la distance euclidienne entre deux couleurs RGB
-pub fn distance_couleurs(couleur1: &Rgb<u8>, couleur2: &Rgb<u8>) -> f32 {
-    let r_diff = couleur1[0] as f32 - couleur2[0] as f32;
-    let g_diff = couleur1[1] as f32 - couleur2[1] as f32;
-    let b_diff = couleur1[2] as f32 - couleur2[2] as f32;
-
-    (r_diff.powi(2) + g_diff.powi(2) + b_diff.powi(2)).sqrt()
-}
+//         // Si la luminosité est supérieure à 128 (seuillage à 50%), couleur blanc, sinon couleur noir
+//         if luminosite > 128.0 {
+//             *pixel = Rgb([255, 255, 255]);
+//         }
+//         else {
+//             *pixel = Rgb([0, 0, 0]);
+//         }
+//     }
+// }
 
 /// Créer une liste avec des couleurs principales
 pub fn creer_liste_couleurs() -> Vec<(&'static str, Rgb<u8>)> {
@@ -128,14 +102,59 @@ pub fn obtenir_couleur_par_nom(nom: &str, liste_couleurs: &Vec<(&'static str, Rg
     std::process::exit(1); // Quitte le programme avec un code d'erreur
 }
 
+// Fonction de seuillage monochrome
+pub fn monochrome_par_seuillage(image_rgb8: &mut RgbImage, couleur_1: Rgb<u8>, couleur_2: Rgb<u8>) {
+    // Parcourir tous les pixels de l'image
+    for (_x, _y, pixel) in image_rgb8.enumerate_pixels_mut() {
+        // Calculer la luminosité du pixel
+        let luminosite = luminosite_pixel(pixel);
+        
+        // Si la luminosité est supérieure à 128 (seuillage à 50%), appliquer couleur_1, sinon couleur_2
+        if luminosite > 128.0 {
+            *pixel = couleur_1;
+        }
+        else {
+            *pixel = couleur_2;
+        }
+    }
+}
+
+/// Calculer la distance euclidienne entre deux couleurs RGB
+pub fn distance_couleurs(couleur1: &Rgb<u8>, couleur2: &Rgb<u8>) -> f32 {
+    let r_diff = couleur1[0] as f32 - couleur2[0] as f32;
+    let g_diff = couleur1[1] as f32 - couleur2[1] as f32;
+    let b_diff = couleur1[2] as f32 - couleur2[2] as f32;
+
+    (r_diff.powi(2) + g_diff.powi(2) + b_diff.powi(2)).sqrt()
+}
+
+// Fonction de palette monochrome
+pub fn monochrome_par_palette(image_rgb8: &mut RgbImage, couleurs_palette: Vec<Rgb<u8>>) {
+    // Parcourir tous les pixels de l'image
+    for (_x, _y, pixel) in image_rgb8.enumerate_pixels_mut() {
+        let mut distance_min = std::f32::MAX;
+        let mut couleur_plus_proche = *pixel;
+        for couleur in &couleurs_palette {
+            let distance = distance_couleurs(pixel, couleur);
+            if distance < distance_min {
+                distance_min = distance;
+                couleur_plus_proche = *couleur;
+            }
+        }
+        // Appliquer la couleur la plus proche au pixel correspondant dans l'image monochrome
+        *pixel = couleur_plus_proche;
+    }
+}
+
 /// Appliquer un tramage aléatoire sur une image RGB8
-pub fn tramage_aléatoire(image_rgb8: &mut RgbImage) {
+pub fn tramage_aleatoire(image_rgb8: &mut RgbImage) {
     for (_x, _y, pixel) in image_rgb8.enumerate_pixels_mut() {
         let luminosite = luminosite_pixel(pixel);
         let seuil: f32 = rand::thread_rng().gen();
         if luminosite / 255.0 > seuil {
             *pixel = Rgb([255, 255, 255]);
-        } else {
+        }
+        else {
             *pixel = Rgb([0, 0, 0]);
         }
     }
@@ -184,8 +203,54 @@ pub fn tramage_ordonne(image_rgb8: &mut RgbImage, matrice_bayer: &Vec<Vec<u32>>)
         let j = y as usize % taille;
         if luminosite / 255.0 > matrice_bayer[i][j] as f32 / (taille * taille) as f32 {
             *pixel = Rgb([255, 255, 255]);
-        } else {
+        }
+        else {
             *pixel = Rgb([0, 0, 0]);
         }
     }
 }
+
+// /// Appliquer la diffusion d'erreur pour une image monochrome
+// pub fn diffusion_erreur_monochrome(image_rgb8: &mut RgbImage) {
+//     // Créer une matrice pour stocker l'erreur accumulée
+//     let (width, height) = (image_rgb8.width(), image_rgb8.height());
+//     let mut erreurs = vec![vec![0.0; width as usize]; height as usize];
+
+//     // Parcourir chaque pixel
+//     for y in 0..height {
+//         for x in 0..width {
+//             let pixel = image_rgb8.get_pixel(x, y);
+//             let luminosite_actuelle = luminosite_pixel(pixel) / 255.0;
+
+//             // Ajouter l'erreur accumulée
+//             let luminosite_corrigee = (luminosite_actuelle + erreurs[y as usize][x as usize]).clamp(0.0, 1.0);
+
+//             // Déterminer la nouvelle couleur (noir ou blanc)
+//             let nouvelle_couleur = if luminosite_corrigee > 0.5 {
+//                 1.0 // Blanc
+//             } else {
+//                 0.0 // Noir
+//             };
+
+//             // Mettre à jour le pixel
+//             let couleur = if nouvelle_couleur == 1.0 {
+//                 Rgb([255, 255, 255])
+//             }
+//             else {
+//                 Rgb([0, 0, 0])
+//             };
+//             image_rgb8.put_pixel(x, y, couleur);
+
+//             // Calculer l'erreur commise
+//             let erreur = luminosite_corrigee - nouvelle_couleur;
+
+//             // Diffuser l'erreur vers les voisins
+//             if x + 1 < width {
+//                 erreurs[y as usize][(x + 1) as usize] += erreur * 0.5;
+//             }
+//             if y + 1 < height {
+//                 erreurs[(y + 1) as usize][x as usize] += erreur * 0.5;
+//             }
+//         }
+//     }
+// }

@@ -110,7 +110,7 @@ fn main() {
                 utils::obtenir_couleur_par_nom(couleur, &couleurs)
             }
             else {
-                utils::obtenir_couleur_par_nom("noir", &couleurs) // valeur par défaut
+                utils::obtenir_couleur_par_nom("blanc", &couleurs) // valeur par défaut
             };
             println!("La couleur 1 est : {:?}", couleur_1_rgb);
 
@@ -118,25 +118,33 @@ fn main() {
                 utils::obtenir_couleur_par_nom(couleur, &couleurs)
             }
             else {
-                utils::obtenir_couleur_par_nom("blanc", &couleurs) // valeur par défaut
+                utils::obtenir_couleur_par_nom("noir", &couleurs) // valeur par défaut
             };
             println!("La couleur 2 est : {:?}", couleur_2_rgb);
 
             utils::monochrome_par_seuillage(&mut image_rgb8, couleur_1_rgb, couleur_2_rgb); // Question 8
         },
         Mode::Palette(opts_palette) => {
-            // Si le mode est Palette, gérer la palette
             println!("Mode palette avec {} couleurs", opts_palette.n_couleurs);
-            // Logique pour traiter le mode palette ici...
 
             let couleurs = utils::creer_liste_couleurs();
+
+            if opts_palette.n_couleurs > couleurs.len() {
+                eprintln!(
+                    "Erreur : Le nombre de couleurs demandé ({}) dépasse le nombre total de couleurs disponibles ({}).",
+                    opts_palette.n_couleurs,
+                    couleurs.len()
+                );
+                std::process::exit(1);
+            }
+
             let mut couleurs_palette = vec![];
             for i in 0..opts_palette.n_couleurs {
                 couleurs_palette.push(couleurs[i].1);
             }
             println!("Les couleurs de la palette sont : {:?}", couleurs_palette);
 
-            utils::monochrome_par_palette(&mut image_rgb8, couleurs_palette); // Question 9
+            utils::monochrome_par_palette(&mut image_rgb8, couleurs_palette); // Question 10
         },
         Mode::Dithering(_opts_dithering) => {
            
@@ -144,17 +152,15 @@ fn main() {
             match _opts_dithering.tramage {
                 Methode::Aleatoire => {
                     println!("Méthode de dithering : Aleatoire");
-                    utils::tramage_aléatoire(&mut image_rgb8); // Question 12
+                    utils::tramage_aleatoire(&mut image_rgb8); // Question 12
                 },
                 Methode::Ordonne => {
                     println!("Méthode de dithering : Ordonne");
                     let matrice = utils::generer_matrice_bayer(2);
                     utils::afficher_matrice(&matrice);
                     utils::tramage_ordonne(&mut image_rgb8, &matrice); // Question 13
-                }
+                },
             }
-            
-            
         }
     }
 
