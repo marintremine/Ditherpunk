@@ -1,49 +1,13 @@
 # Ditherpunk - Application console
 
-TODO : Description
-
-## Installation
-
-TODO 
+Le sujet porte sur la réalisation d'une application en ligne de commande en Rust pour transformer des images, par exemple en versions monochromes ou avec des palettes de couleurs. L'application utilise la bibliothèque Rust image pour manipuler les images et argh pour créer une interface utilisateur via la ligne de commande.
 
 ## Développeurs
 
-- Quentin BOURREAU
-- Marin TREMINE
+- **TREMINE Marin**: [GitHub](https://github.com/marintremine)
+- **BOURREAU Quentin**: [GitHub](https://github.com/BOURREAUQuentin)
 
-## Fonctionnalités
-
-TODO
-
-## Utilisation
-
-ditherpunk [OPTIONS] <INPUT> <OUTPUT> <SUBCOMMAND>
-
-ditherpunk.exe -- --help
-```bash
-Convertit une image en monochrome ou vers une palette réduite de couleurs.
-
-Positional Arguments:
-  input             le fichier d’entrée
-  output            le fichier de sortie (optionnel)
-
-Options:
-  --help, help      display usage information
-
-Commands:
-  seuil             Rendu de l’image par seuillage monochrome.  
-  palette           Rendu de l’image avec une palette contenant un nombre limité de couleurs
-```
-Exemple 
-    
-```bash
-cargo run -- input.png seuil
-```
-
-```bash
-cargo run -- input_image.png output_image.png palette --n-couleurs 4
-```
-
+## Réponses aux questions
 
 ### Question 2 : Ouvrir une image depuis un fichier
 
@@ -544,57 +508,361 @@ utils::afficher_matrice(&matrice);
 utils::tramage_ordonne(&mut image_rgb8, &matrice);
 ```
 
-### Question 16 : Implémenter un mécanisme de diffusion d’erreur suivant la matrice donnée dans le sujet
+### Question 16 : Implémenter un mécanisme de diffusion d’erreur suivant la matrice donnée dans le sujet pour les images en noir et blanc
 
 a faire
 
 ### Question 17 : Pour une palette de couleurs, comment vous représentez l’erreur commise à chaque pixel, comment vous la diffusez
 
-a faire
+#### Représentation de l’erreur pour chaque pixel
+
+Lors de la conversion d’une image vers une palette de couleurs, nous calculons l’erreur comme suit :
+
+- Chaque pixel de l'image est comparé à la couleur de la palette qui lui est la plus proche.
+- Une fois que la couleur la plus proche est déterminée, l'erreur est représentée par la différence entre les valeurs des canaux (R, G, B) du pixel d'origine et de la couleur choisie.
+    - Erreur par canal :
+
+        erreur = [
+            ancien_pixel[0] as f32 - nouveau_pixel[0] as f32,
+            ancien_pixel[1] as f32 - nouveau_pixel[1] as f32,
+            ancien_pixel[2] as f32 - nouveau_pixel[2] as f32,
+        ];
+
+L’erreur est donc un vecteur de trois composantes flottantes (R, G, B) représentant la différence à répartir sur les pixels voisins.
+
+#### Diffusion de l’erreur
+
+La diffusion d'erreur consiste à redistribuer l'erreur calculée sur les pixels voisins qui n'ont pas encore été traités. Cela permet de corriger l'approximation effectuée lors de la conversion du pixel courant. Voici les étapes détaillées de comment nous diffusons l'erreur :
+
+- Choix de la matrice de diffusion :
+    - Une matrice spécifique (par exemple, Floyd-Steinberg, Atkinson, etc.) est utilisée pour répartir l’erreur.
+    - Exemple de matrice de Floyd-Steinberg :
+
+        vec![
+            vec![0.0, 0.0, 7.0 / 16.0],
+            vec![3.0 / 16.0, 5.0 / 16.0, 1.0 / 16.0],
+        ];
+
+- Application de l'erreur sur les pixels voisins :
+    - Pour chaque voisin défini par la matrice, on applique une fraction de l'erreur calculée au pixel concerné :
+
+    ```rust
+    for i in 0..matrix_height {
+        for j in 0..matrix_width {
+            let new_x = x + j - matrix_width / 2;
+            let new_y = y + i - matrix_height / 2;
+            if new_x >= 0 && new_y >= 0 && new_x < width && new_y < height {
+                let new_pixel = image_rgb8.get_pixel_mut(new_x as u32, new_y as u32);
+                new_pixel[0] = (new_pixel[0] as f32 + erreur[0] * matrix[i as usize][j as usize]) as u8;
+                new_pixel[1] = (new_pixel[1] as f32 + erreur[1] * matrix[i as usize][j as usize]) as u8;
+                new_pixel[2] = (new_pixel[2] as f32 + erreur[2] * matrix[i as usize][j as usize]) as u8;
+            }
+        }
+    }
+    ```
+
+- Répétition sur l’image :
+    - Cette opération est répétée pour chaque pixel de l'image, en parcourant l'image ligne par ligne, afin que l'erreur se propage de manière cohérente.
 
 ### Question 18 : Implémenter la diffusion d’erreur pour la palettisation d’images
 
-a faire
+Pour implémenter la diffusion d'erreur lors de la palettisation d'images, nous avons créé la fonction **diffusion_erreur_generique** dans utils.rs. Cette fonction permet d'appliquer la diffusion d'erreur en utilisant une palette de couleurs spécifiée et une matrice de diffusion choisie :
+
+- Si le nombre demandé dépasse la taille de la palette, un message d’erreur est affiché, et le programme se termine :
+```rust
+if opts_diffusion_erreur.n_couleurs > couleurs.len() {
+    eprintln!(
+        "Erreur : Le nombre de couleurs demandé ({}) dépasse le nombre total de couleurs disponibles ({}).",
+        opts_diffusion_erreur.n_couleurs,
+        couleurs.len()
+    );
+    std::process::exit(1);
+}
+```
+
+- La palette est générée à partir des couleurs disponibles :
+```rust
+let mut couleurs_palette = vec![];
+for i in 0..opts_diffusion_erreur.n_couleurs {
+    couleurs_palette.push(couleurs[i].1);
+}
+```
+
+- L'utilisateur sélectionne une matrice de diffusion (ex. Floyd-Steinberg, Atkinson) :
+```rust
+let matrice = match opts_diffusion_erreur.matrice {
+    MatriceDiffusionErreur::FloydSteinberg => utils::floyd_steinberg(),
+    MatriceDiffusionErreur::Atkinson => utils::atkinson(),
+    _ => unimplemented!(),
+};
+```
+
+- La fonction diffusion_erreur_generique applique la diffusion à l’image en répartissant l’erreur sur les pixels voisins :
+```rust
+utils::diffusion_erreur_generique(&mut image_rgb8, couleurs_palette, matrice);
+```
+
 
 ### Question 19 : Implémenter la diffusion d’erreur pour la matrice de Floyd-Steinberg
 
-a faire
+Pour la matrice de Floyd-Steinberg, nous avons implémenté la diffusion d'erreur en appliquant les coefficients spécifiques de la matrice aux pixels voisins.
+
+- La matrice est représentée sous forme de pondérations appliquées aux voisins :
+```rust
+pub fn floyd_steinberg() -> Vec<Vec<f32>> {
+    vec![
+        vec![0.0, 0.0, 7.0 / 16.0],
+        vec![3.0 / 16.0, 5.0 / 16.0, 1.0 / 16.0],
+    ]
+}
+```
+
+- Nous utilisons la fonction générique diffusion_erreur_generique, qui applique la matrice choisie pour répartir l'erreur sur les pixels voisins :
+```rust
+utils::diffusion_erreur_generique(&mut image_rgb8, couleurs_palette, utils::floyd_steinberg());
+```
+
+- L'erreur est calculée comme la différence entre la couleur du pixel d'origine et la couleur de la palette la plus proche.
+- Chaque voisin reçoit une fraction de cette erreur selon les coefficients de la matrice.
 
 ### Question 20 : Comment représenter une matrice de diffusion d’erreur arbitraire? Permettre de changer de matrice de diffusion d’erreurs, et tester les matrices de diffusion de Jarvis-Judice-Ninke et Atkinson
 
 a faire
 
-### Question autres genre partie 7 à voir si faut écrire dans le README
+### Question 21 : Donner une spécification de votre interface sous forme d’un projet d’écran d’aide, tel que celui qui sera obtenu par cargo run -- --help
 
-a faire
+Voici notre spécification de notre interface sous forme d'un projet d'écran d'aide : 
 
+Elle est accessible depuis la commande :
 
-<!-- ### Question 17 : expliquer dans votre README comment vous représentez l’erreur commise à chaque pixel, comment vous la diffusez pour une palette de couleurs.
-
-Lorsque nous utilisons une palette de couleurs, l'erreur commise pour chaque pixel correspond à la différence entre la couleur réelle du pixel original et la couleur approximative choisie dans la palette. Cette erreur est un vecteur à trois composantes représentant les écarts dans les canaux rouge, vert et bleu.
-
-Par exemple, si la couleur originale d'un pixel est (120, 200, 150) et que la couleur la plus proche dans la palette est (100, 180, 140), nous calculons l'erreur ainsi :
-
-Erreur = Couleur originale - Couleur approximée = (120 - 100, 200 - 180, 150 - 140) = (20, 20, 10)
-
-Après avoir calculé l'erreur pour un pixel, nous la diffusons à ses voisins pour compenser l'approximation. Cela permet de répartir les écarts cumulés sur l'ensemble de l'image, ce qui produit un rendu plus fluide.
-
-Nous utilisons une matrice simple (donnée dans le sujet) pour diffuser l'erreur uniquement aux voisins qui n'ont pas encore été traités. Par exemple, la matrice suivante :
-
-```rust
-  *  0.5
-  0.5  0
+```bash
+cargo run -- --help
 ```
 
-  - '*' représente le pixel en cours de traitement.
-  - 0.5 indique qu'on envoie 50% de l'erreur au voisin immédiat de droite (x + 1, y).
-  - 0.5 indique qu'on envoie 50% de l'erreur au voisin immédiat en bas (x, y + 1).
+```bash
+cargo run [OPTIONS] <INPUT> [OUTPUT] <SUBCOMMAND>
 
-Supposons que le pixel (x, y) ait une erreur (20, 20, 10).
+Positional Arguments:
+  input              le fichier d’entrée
+  output             le fichier de sortie (optionnel, par défaut : 'output/out.png')
 
-Selon la matrice, nous divisons cette erreur par les coefficients correspondants :
-  - Pixel (x + 1, y) reçoit 50% de l'erreur : (10, 10, 5).
-  - Pixel (x, y + 1) reçoit également 50% de l'erreur : (10, 10, 5).
+Options:
+  --help, help       affiche l’aide pour la commande.
 
-Ces valeurs sont ajoutées aux pixels voisins avant qu'ils ne soient traités, pour ajuster leur couleur en conséquence. -->
+Commands:
+  seuil              Rendu de l’image par seuillage monochrome.
+                     Options :
+                       --couleur-1 <STRING>  la couleur 1 personnalisée (optionnelle, par défaut : blanc)
+                       --couleur-2 <STRING>  la couleur 2 personnalisée (optionnelle, par défaut : noir)
 
+  palette            Rendu de l’image avec une palette contenant un nombre limité de couleurs.
+                     Options :
+                       --n-couleurs <NUMBER> le nombre de couleurs à utiliser (obligatoire).
+
+  dithering          Rendu de l’image par dithering.
+                     Options :
+                       --tramage <aleatoire|ordonne> méthode de tramage (obligatoire, valeurs possibles : aleatoire, ordonne).
+
+  diffusion-erreur   Rendu de l’image par diffusion d’erreur.
+                     Options :
+                       --n-couleurs <NUMBER> le nombre de couleurs à utiliser dans la palette.
+                       --matrice <simple2d|floydsteinberg|jarvisjudiceninke|atkinson> 
+                                        la matrice de diffusion d’erreur à utiliser (obligatoire).
+
+```
+
+#### Exemples d'utilisation
+
+Seuillage monochrome avec couleurs personnalisées
+```bash
+cargo run -- images/defaut.jpg output/out.jpg seuil --couleur-1 rouge --couleur-2 bleu
+```
+
+Réduction à une palette de 4 couleurs
+```bash
+cargo run -- images/defaut.jpg output/out.jpg palette --n-couleurs 4
+```
+
+Dithering avec méthode aléatoire
+```bash
+cargo run -- images/defaut.jpg output/out.jpg dithering --tramage aleatoire
+```
+
+Dithering avec méthode ordonnée
+```bash
+cargo run -- images/defaut.jpg output/out.jpg dithering --tramage ordonne
+```
+
+Diffusion d’erreur avec Floyd-Steinberg et 5 couleurs
+```bash
+cargo run -- images/defaut.jpg output/out.jpg diffusion-erreur --n-couleurs 5 --matrice floydsteinberg
+```
+
+Diffusion d’erreur avec la matrice Atkinson et 8 couleurs
+```bash
+cargo run -- images/defaut.jpg output/out.jpg diffusion-erreur --n-couleurs 8 --matrice atkinson
+```
+
+#### Nos choix
+
+Chaque traitement (seuil, palette, dithering, diffusion d’erreur) est isolé pour clarifier leur usage. Les paramètres pertinents (comme les couleurs, le nombre de couleurs, et la matrice de diffusion) sont associés uniquement aux sous-commandes concernées.
+
+
+### Question 22 : Déterminer le type Rust correspondant à une sélection d’options fournies par l’utilisateur
+
+Le type Rust que nous avons choisi pour représenter les options de la ligne de commande est défini par la structure principale DitherArgs. Cette structure regroupe toutes les options fournies par l'utilisateur ainsi que les sous-commandes associées, ce qui permet une gestion claire et typée des arguments en ligne de commande.
+
+Voici la définition complète du type :
+
+```rust
+#[derive(Debug, Clone, PartialEq, FromArgs)]
+/// Convertit une image en monochrome ou vers une palette réduite de couleurs.
+struct DitherArgs {
+
+    /// le fichier d’entrée
+    #[argh(positional)]
+    input: String,
+
+    /// le fichier de sortie (optionnel)
+    #[argh(positional)]
+    output: Option<String>,
+
+    /// le mode d’opération
+    #[argh(subcommand)]
+    mode: Mode,
+}
+
+#[derive(Debug, Clone, PartialEq, FromArgs)]
+#[argh(subcommand)]
+enum Mode {
+    Seuil(OptsSeuil),
+    Palette(OptsPalette),
+    Dithering(OptsDithering),
+    DiffussionErreur(OptsDiffusionErreur),
+}
+
+#[derive(Debug, Clone, PartialEq, FromArgs)]
+#[argh(subcommand, name="seuil")]
+/// Rendu de l’image par seuillage monochrome.
+struct OptsSeuil {
+    /// la couleur 1 personnalisée (optionnelle)
+    #[argh(option)]
+    couleur_1: Option<String>,
+
+    /// la couleur 2 personnalisée (optionnelle)
+    #[argh(option)]
+    couleur_2: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, FromArgs)]
+#[argh(subcommand, name="palette")]
+/// Rendu de l’image avec une palette contenant un nombre limité de couleurs
+struct OptsPalette {
+
+    /// le nombre de couleurs à utiliser, dans la liste [NOIR, BLANC, ROUGE, VERT, BLEU, JAUNE, CYAN, MAGENTA]
+    #[argh(option)]
+    n_couleurs: usize
+}
+
+#[derive(Debug, Clone, PartialEq, FromArgs)]
+#[argh(subcommand, name = "diffusion-erreur")]
+/// Rendu de l’image par diffusion d’erreur.
+struct OptsDiffusionErreur {
+    /// le nombre de couleurs à utiliser, dans la liste [NOIR, BLANC, ROUGE, VERT, BLEU, JAUNE, CYAN, MAGENTA]
+    #[argh(option)]
+    n_couleurs: usize,
+    /// la matrice de diffusion d’erreur à utiliser
+    #[argh(option)]
+    matrice: MatriceDiffusionErreur,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum MatriceDiffusionErreur {
+    Simple2D,
+    FloydSteinberg,
+    JarvisJudiceNinke,
+    Atkinson,
+}
+
+// Implémentation de FromStr pour Enum
+impl FromStr for MatriceDiffusionErreur {
+    type Err = String;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s.to_lowercase().as_str() {
+            "simple2d" => Ok(MatriceDiffusionErreur::Simple2D),
+            "floydsteinberg" => Ok(MatriceDiffusionErreur::FloydSteinberg),
+            "jarvisjudiceninke" => Ok(MatriceDiffusionErreur::JarvisJudiceNinke),
+            "atkinson" => Ok(MatriceDiffusionErreur::Atkinson),
+            _ => Err(format!("Matrice de diffusion d'erreur invalide: {}", s)),
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum Methode {
+    Aleatoire,
+    Ordonne,
+}
+
+// Implémentation de FromStr pour Enum
+impl FromStr for Methode {
+    type Err = String;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s.to_lowercase().as_str() {
+            "aleatoire" => Ok(Methode::Aleatoire),
+            "ordonne" => Ok(Methode::Ordonne),
+            _ => Err(format!("Méthode de dithering invalide: {}", s)),
+        }
+    }
+}
+
+
+
+#[derive(Debug, Clone, PartialEq, FromArgs)]
+#[argh(subcommand, name = "dithering")]
+/// Rendu de l'image par dithering.
+pub struct OptsDithering {
+    /// la méthode de tramage à utiliser
+    #[argh(option)]
+    tramage: Methode,
+}
+```
+
+Voici quelques explications pour mieux comprendre la structure de notre projet :
+
+1. DitherArgs
+    - La structure principale pour gérer les options de la ligne de commande.
+    - Champs :
+        - input : Argument positionnel obligatoire représentant le chemin du fichier d'entrée.
+        - output : Argument positionnel optionnel pour le fichier de sortie.
+        - mode : Un Mode (enum) qui contient les sous-commandes disponibles.
+
+2. Enumération Mode
+    - Représente les sous-commandes disponibles :
+        - Seuil : Pour le mode de seuillage monochrome.
+        - Palette : Pour limiter l'image à une palette de couleurs.
+        - Dithering : Pour effectuer un tramage aléatoire ou ordonné.
+        - DiffussionErreur : Pour appliquer la diffusion d'erreur avec différentes matrices.
+
+3. Sous-structures (OptsSeuil, OptsPalette, OptsDithering, OptsDiffusionErreur)
+    - Chaque sous-commande a ses options spécifiques :
+        - OptsSeuil :
+            - Deux couleurs personnalisées, facultatives.
+        - OptsPalette :
+            - Nombre de couleurs à inclure dans la palette (obligatoire).
+        - OptsDithering :
+            - Méthode de tramage (aléatoire ou ordonné).
+        - OptsDiffusionErreur :
+            - Nombre de couleurs à utiliser et matrice de diffusion d'erreur sélectionnée.
+
+4. Enumérations (Methode, MatriceDiffusionErreur)
+    - Methode :
+        - Représente les deux approches possibles pour le tramage : Aleatoire et Ordonne.
+    - MatriceDiffusionErreur :
+        - Contient les matrices disponibles : Simple2D, FloydSteinberg, JarvisJudiceNinke, et Atkinson.
+
+### Question 23 : Implémenter votre interface en ligne de commande à l’aide de la directive #[derive(FromArgs)] sur votre type
+
+Nous avons mis en place l'interface en ligne de commande tout au long du projet à l'aide de la bibliothèque argh. Grâce à la directive **#[derive(FromArgs)]**, nous avons défini un type Rust structurant les options et les sous-commandes disponibles pour l'utilisateur comme expliqué précédemment à la question 21 et 22.

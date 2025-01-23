@@ -203,6 +203,16 @@ fn main() {
         Mode::DiffussionErreur(opts_diffusion_erreur) => {
             println!("Mode diffusion d'erreur");
             let couleurs = utils::creer_liste_couleurs();
+
+            if opts_diffusion_erreur.n_couleurs > couleurs.len() {
+                eprintln!(
+                    "Erreur : Le nombre de couleurs demandé ({}) dépasse le nombre total de couleurs disponibles ({}).",
+                    opts_diffusion_erreur.n_couleurs,
+                    couleurs.len()
+                );
+                std::process::exit(1);
+            }
+
             let mut couleurs_palette = vec![];
             for i in 0..opts_diffusion_erreur.n_couleurs {
                 couleurs_palette.push(couleurs[i].1);
