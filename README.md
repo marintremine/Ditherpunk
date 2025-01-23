@@ -414,23 +414,23 @@ Grâce à notre fonction implémentée **generer_matrice_bayer** qui génère un
 
 ```rust
 /// Générer une matrice de Bayer de taille 2^order
-pub fn generer_matrice_bayer(order: u32) -> Vec<Vec<u32>> {
+pub fn generer_matrice_bayer(order: u32) -> Vec<Vec<f32>> {
     if order == 0 {
-        return vec![vec![0]];
+        return vec![vec![0.0]];
     }
 
     let matrice_precedente = generer_matrice_bayer(order - 1);
     let taille = matrice_precedente.len();
     let nouvelle_taille = taille * 2;
-    let mut matrice = vec![vec![0; nouvelle_taille]; nouvelle_taille];
+    let mut matrice = vec![vec![0.0; nouvelle_taille]; nouvelle_taille];
 
     for i in 0..taille {
         for j in 0..taille {
-            let valeur_base = matrice_precedente[i][j] * 4;
+            let valeur_base = matrice_precedente[i][j] * 4.0;
             matrice[i][j] = valeur_base;
-            matrice[i][j + taille] = valeur_base + 2;
-            matrice[i + taille][j] = valeur_base + 3;
-            matrice[i + taille][j + taille] = valeur_base + 1;
+            matrice[i][j + taille] = valeur_base + 2.0;
+            matrice[i + taille][j] = valeur_base + 3.0;
+            matrice[i + taille][j + taille] = valeur_base + 1.0;
         }
     }
 
@@ -438,7 +438,7 @@ pub fn generer_matrice_bayer(order: u32) -> Vec<Vec<u32>> {
 }
 
 /// Afficher une matrice d'entiers
-pub fn afficher_matrice(matrice: &Vec<Vec<u32>>) {
+pub fn afficher_matrice(matrice: &Vec<Vec<f32>>) {
     for ligne in matrice {
         for valeur in ligne {
             print!("{} ", valeur);
@@ -457,10 +457,10 @@ Ainsi, nous obtenons B3 = ![alt text](b3.png)
 
 **Quel type de données utiliser pour représenter la matrice de Bayer?**
 
-Nous avons représenté la matrice de Bayer par un vecteur de vecteurs (Vec<Vec<u32>>).
+Nous avons représenté la matrice de Bayer par un vecteur de vecteurs (Vec<Vec<f32>>).
 
 - Vec : Ce type est dynamique, ce qui permet nous de gérer des tailles arbitraires de matrice sans connaître à l'avance leur dimension.
-- u32 : Les valeurs de la matrice sont des entiers non signés, ce qui est adapté pour notre traitement car les indices de la matrice de Bayer sont toujours positifs et croissants.
+- f32 : Les valeurs de la matrice sont des nombres en virgule flottante sur 32 bits, ce qui est adapté pour notre traitement, car cela permet de représenter des indices avec une plus grande précision ou pour des calculs nécessitant des fractions. Même si les matrices utilisaient uniquement des entiers, on a décidé d'utiliser des flottants pour nous simplifier la suite du projet.
 
 **Comment créer une matrice de Bayer d’ordre arbitraire?**
 
@@ -510,7 +510,89 @@ utils::tramage_ordonne(&mut image_rgb8, &matrice);
 
 ### Question 16 : Implémenter un mécanisme de diffusion d’erreur suivant la matrice donnée dans le sujet pour les images en noir et blanc
 
-a faire
+Pour répondre à la question, nous avons modifié la matrice de diffusion d'erreur donnée dans le sujet pour placer l'étoile (le pixel courant) au centre de la matrice. Cette approche a nécessité l’ajout de zéros dans les zones où aucune erreur n’est propagée. Voici notre méthodologie et les étapes suivies :
+Représentation de la matrice avec l’étoile au centre
+
+La matrice donnée dans le sujet :
+```rust
+[ *  0.5 ]
+[0.5   0 ]
+```
+
+A été modifiée pour aligner l'étoile au centre :
+```rust
+[ 0.0   0.0   0.0 ]
+[ 0.0   *    0.5 ]
+[ 0.0  0.5   0.0 ]
+```
+
+Cette matrice est représentée en Rust comme suit :
+```rust
+pub fn simple_2_d() -> Vec<Vec<f32>> {
+    vec![
+        vec![0.0, 0.0, 0.0],
+        vec![0.0, 0.0, 0.5],
+        vec![0.0, 0.5, 0.0],
+    ]
+}
+```
+
+Pour appliquer l'erreur sur les pixels voisins en respectant cette matrice :
+
+- Pour chaque pixel, nous déterminons la différence entre la couleur initiale du pixel et la couleur binaire choisie (noir ou blanc).
+- Nous parcourons chaque élément de la matrice et appliquons l’erreur pondérée aux pixels voisins en tenant compte de la position centrale de l'étoile.
+- Comme l’étoile est au centre de la matrice, les indices des voisins sont calculés en ajoutant les décalages relatifs (par rapport à la position centrale de la matrice).
+
+```rust
+fn couleur_la_plus_proche(pixel: &Rgb<u8>, couleurs_palette: &Vec<Rgb<u8>>) -> Rgb<u8>{
+    let mut distance_min = std::f32::MAX;
+    let mut couleur_plus_proche = *pixel;
+    for couleur in couleurs_palette {
+        let distance = distance_couleurs(pixel, couleur);
+        if distance < distance_min {
+            distance_min = distance;
+            couleur_plus_proche = *couleur;
+        }
+    }
+    couleur_plus_proche
+}
+
+pub fn diffusion_erreur(image_rgb8: &mut RgbImage){
+    let width = image_rgb8.width() as i32;
+    let height = image_rgb8.height() as i32;
+
+    for y in 0..height{
+        for x in 0..width{
+            let pixel = image_rgb8.get_pixel_mut(x as u32, y as u32);
+            let ancien_pixel = *pixel;
+            let nouveau_pixel = couleur_la_plus_proche(&ancien_pixel, &vec![Rgb([0, 0, 0]), Rgb([255, 255, 255])]);
+            *pixel = nouveau_pixel;
+            let erreur = [
+                ancien_pixel[0] as f32 - nouveau_pixel[0] as f32,
+                ancien_pixel[1] as f32 - nouveau_pixel[1] as f32, 
+                ancien_pixel[2] as f32 - nouveau_pixel[2] as f32
+            ];
+
+            //pixel de droite
+            if x + 1 < width {
+                let new_pixel = image_rgb8.get_pixel_mut((x + 1) as u32, y as u32);
+                new_pixel[0] = (new_pixel[0] as f32 + erreur[0] * 0.5) as u8;
+                new_pixel[1] = (new_pixel[1] as f32 + erreur[1] * 0.5) as u8;
+                new_pixel[2] = (new_pixel[2] as f32 + erreur[2] * 0.5) as u8;
+            }
+
+            //pixel en dessous
+            if y + 1 < height {
+                let new_pixel = image_rgb8.get_pixel_mut(x as u32, (y + 1) as u32);
+                new_pixel[0] = (new_pixel[0] as f32 + erreur[0] * 0.5) as u8;
+                new_pixel[1] = (new_pixel[1] as f32 + erreur[1] * 0.5) as u8;
+                new_pixel[2] = (new_pixel[2] as f32 + erreur[2] * 0.5) as u8;
+            }
+        }
+    }
+}
+```
+
 
 ### Question 17 : Pour une palette de couleurs, comment vous représentez l’erreur commise à chaque pixel, comment vous la diffusez
 
@@ -536,12 +618,6 @@ La diffusion d'erreur consiste à redistribuer l'erreur calculée sur les pixels
 
 - Choix de la matrice de diffusion :
     - Une matrice spécifique (par exemple, Floyd-Steinberg, Atkinson, etc.) est utilisée pour répartir l’erreur.
-    - Exemple de matrice de Floyd-Steinberg :
-
-        vec![
-            vec![0.0, 0.0, 7.0 / 16.0],
-            vec![3.0 / 16.0, 5.0 / 16.0, 1.0 / 16.0],
-        ];
 
 - Application de l'erreur sur les pixels voisins :
     - Pour chaque voisin défini par la matrice, on applique une fraction de l'erreur calculée au pixel concerné :
@@ -591,9 +667,10 @@ for i in 0..opts_diffusion_erreur.n_couleurs {
 - L'utilisateur sélectionne une matrice de diffusion (ex. Floyd-Steinberg, Atkinson) :
 ```rust
 let matrice = match opts_diffusion_erreur.matrice {
+    MatriceDiffusionErreur::Simple2D => utils::simple_2_d(),
     MatriceDiffusionErreur::FloydSteinberg => utils::floyd_steinberg(),
+    MatriceDiffusionErreur::JarvisJudiceNinke => utils::jarvis_judice_ninke(),
     MatriceDiffusionErreur::Atkinson => utils::atkinson(),
-    _ => unimplemented!(),
 };
 ```
 
@@ -605,29 +682,111 @@ utils::diffusion_erreur_generique(&mut image_rgb8, couleurs_palette, matrice);
 
 ### Question 19 : Implémenter la diffusion d’erreur pour la matrice de Floyd-Steinberg
 
-Pour la matrice de Floyd-Steinberg, nous avons implémenté la diffusion d'erreur en appliquant les coefficients spécifiques de la matrice aux pixels voisins.
+Pour implémenter la diffusion d’erreur avec la matrice de Floyd-Steinberg, nous avons suivi une approche similaire à celle de la question précédente, en adaptant la matrice pour que l'étoile (le pixel courant) soit située au centre.
+Matrice de Floyd-Steinberg avec l’étoile centrée
 
-- La matrice est représentée sous forme de pondérations appliquées aux voisins :
+La matrice de diffusion d'erreur de Floyd-Steinberg originale :
+```rust
+[ *  7/16 ]
+[3/16 5/16 1/16 ]
+```
+
+A été adaptée comme suit pour positionner l’étoile au centre :
+```rust
+[ 0.0   0.0    0.0 ]
+[ 0.0    *    7/16 ]
+[3/16  5/16   1/16 ]
+```
+
+La représentation en code que nous avons :
 ```rust
 pub fn floyd_steinberg() -> Vec<Vec<f32>> {
     vec![
-        vec![0.0, 0.0, 7.0 / 16.0],
-        vec![3.0 / 16.0, 5.0 / 16.0, 1.0 / 16.0],
+        vec![0.0, 0.0, 0.0],          // Ligne au-dessus (pas de propagation)
+        vec![0.0, 0.0, 7.0 / 16.0],  // Ligne du pixel courant (étoile au centre)
+        vec![3.0 / 16.0, 5.0 / 16.0, 1.0 / 16.0], // Ligne en dessous
     ]
 }
 ```
 
-- Nous utilisons la fonction générique diffusion_erreur_generique, qui applique la matrice choisie pour répartir l'erreur sur les pixels voisins :
+Pour appliquer la matrice de Floyd-Steinberg :
+
+- L'erreur est la différence entre la couleur originale du pixel et la couleur de la palette la plus proche.
+- L'erreur est répartie sur les pixels voisins en utilisant les coefficients de la matrice.
+- Les indices des voisins sont calculés en fonction de la position de l’étoile dans la matrice.
+
+- Nous utilisons enfin la fonction générique **diffusion_erreur_generique**, qui applique la matrice choisie pour répartir l'erreur sur les pixels voisins :
 ```rust
 utils::diffusion_erreur_generique(&mut image_rgb8, couleurs_palette, utils::floyd_steinberg());
 ```
 
-- L'erreur est calculée comme la différence entre la couleur du pixel d'origine et la couleur de la palette la plus proche.
-- Chaque voisin reçoit une fraction de cette erreur selon les coefficients de la matrice.
-
 ### Question 20 : Comment représenter une matrice de diffusion d’erreur arbitraire? Permettre de changer de matrice de diffusion d’erreurs, et tester les matrices de diffusion de Jarvis-Judice-Ninke et Atkinson
 
-a faire
+Pour représenter une matrice de diffusion d'erreur arbitraire, nous avons utilisé un tableau 2D de type Vec<Vec<f32>>. Chaque élément de ce tableau correspond au poids d'erreur propagé à un voisin. L'étoile (pixel courant) est placée au centre de la matrice. Cela simplifie les calculs et rend le système plus extensible.
+
+Jarvis-Judice-Ninke (J-J-N) adaptée avec étoile au centre :
+```rust
+pub fn jarvis_judice_ninke() -> Vec<Vec<f32>> {
+    vec![
+        vec![0.0, 0.0, 0.0, 0.0, 0.0],
+        vec![0.0, 0.0, 0.0, 0.0, 0.0],
+        vec![0.0, 0.0, 0.0, 7.0 / 48.0, 5.0 / 48.0],
+        vec![3.0 / 48.0, 5.0 / 48.0, 7.0 / 48.0, 5.0 / 48.0, 3.0 / 48.0],
+        vec![1.0 / 48.0, 3.0 / 48.0, 5.0 / 48.0, 3.0 / 48.0, 1.0 / 48.0]
+    ]
+}
+```
+
+Atkinson adaptée avec étoile au centre :
+```rust
+pub fn atkinson() -> Vec<Vec<f32>> {
+    vec![
+        vec![0.0, 0.0, 0.0, 0.0, 0.0],
+        vec![0.0, 0.0, 0.0, 0.0, 0.0],
+        vec![0.0, 0.0, 0.0, 1.0 / 8.0, 1.0 / 8.0],
+        vec![0.0, 1.0 / 8.0, 1.0 / 8.0, 1.0 / 8.0, 0.0],
+        vec![0.0, 0.0, 1.0 / 8.0, 0.0, 0.0]
+    ]
+}
+```
+
+Pour permettre de changer dynamiquement la matrice de diffusion, nous avons défini une énumération MatriceDiffusionErreur. Cette énumération permet de représenter les différentes matrices disponibles, et leur sélection est réalisée à l'exécution : 
+```rust
+#[derive(Debug, Clone, PartialEq)]
+pub enum MatriceDiffusionErreur {
+    Simple2D,
+    FloydSteinberg,
+    JarvisJudiceNinke,
+    Atkinson,
+}
+
+// Implémentation de FromStr pour Enum
+impl FromStr for MatriceDiffusionErreur {
+    type Err = String;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s.to_lowercase().as_str() {
+            "simple2d" => Ok(MatriceDiffusionErreur::Simple2D),
+            "floydsteinberg" => Ok(MatriceDiffusionErreur::FloydSteinberg),
+            "jarvisjudiceninke" => Ok(MatriceDiffusionErreur::JarvisJudiceNinke),
+            "atkinson" => Ok(MatriceDiffusionErreur::Atkinson),
+            _ => Err(format!("Matrice de diffusion d'erreur invalide: {}", s)),
+        }
+    }
+}
+```
+
+Dans la fonction principale, l'utilisateur peut spécifier la matrice souhaitée via une option en ligne de commande. La matrice sélectionnée est ensuite utilisée dans la fonction générique **diffusion_erreur_generique** :
+```rust
+let matrice = match opts_diffusion_erreur.matrice {
+    MatriceDiffusionErreur::Simple2D => utils::simple_2_d(),
+    MatriceDiffusionErreur::FloydSteinberg => utils::floyd_steinberg(),
+    MatriceDiffusionErreur::JarvisJudiceNinke => utils::jarvis_judice_ninke(),
+    MatriceDiffusionErreur::Atkinson => utils::atkinson(),
+};
+
+utils::diffusion_erreur_generique(&mut image_rgb8, couleurs_palette, matrice); // Question 20
+```
 
 ### Question 21 : Donner une spécification de votre interface sous forme d’un projet d’écran d’aide, tel que celui qui sera obtenu par cargo run -- --help
 
@@ -666,8 +825,7 @@ Commands:
   diffusion-erreur   Rendu de l’image par diffusion d’erreur.
                      Options :
                        --n-couleurs <NUMBER> le nombre de couleurs à utiliser dans la palette.
-                       --matrice <simple2d|floydsteinberg|jarvisjudiceninke|atkinson> 
-                                        la matrice de diffusion d’erreur à utiliser (obligatoire).
+                       --matrice <simple2d|floydsteinberg|jarvisjudiceninke|atkinson> la matrice de diffusion d’erreur à utiliser (obligatoire).
 
 ```
 
