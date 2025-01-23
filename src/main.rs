@@ -30,6 +30,7 @@ enum Mode {
     Seuil(OptsSeuil),
     Palette(OptsPalette),
     Dithering(OptsDithering),
+    DiffussionErreur(OptsDiffusionErreur),
 }
 
 #[derive(Debug, Clone, PartialEq, FromArgs)]
@@ -55,6 +56,41 @@ struct OptsPalette {
     n_couleurs: usize
 }
 
+#[derive(Debug, Clone, PartialEq, FromArgs)]
+#[argh(subcommand, name = "diffusion-erreur")]
+/// Rendu de l’image par diffusion d’erreur.
+struct OptsDiffusionErreur {
+    /// le nombre de couleurs à utiliser, dans la liste [NOIR, BLANC, ROUGE, VERT, BLEU, JAUNE, CYAN, MAGENTA]
+    #[argh(option)]
+    n_couleurs: usize,
+    /// la matrice de diffusion d’erreur à utiliser
+    #[argh(option)]
+    matrice: MatriceDiffusionErreur,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum MatriceDiffusionErreur {
+    Simple2D,
+    FloydSteinberg,
+    JarvisJudiceNinke,
+    Atkinson,
+}
+
+// Implémentation de FromStr pour Enum
+impl FromStr for MatriceDiffusionErreur {
+    type Err = String;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s.to_lowercase().as_str() {
+            "simple2d" => Ok(MatriceDiffusionErreur::Simple2D),
+            "floydsteinberg" => Ok(MatriceDiffusionErreur::FloydSteinberg),
+            "jarvisjudiceninke" => Ok(MatriceDiffusionErreur::JarvisJudiceNinke),
+            "atkinson" => Ok(MatriceDiffusionErreur::Atkinson),
+            _ => Err(format!("Matrice de diffusion d'erreur invalide: {}", s)),
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq)]
 pub enum Methode {
     Aleatoire,
@@ -73,6 +109,8 @@ impl FromStr for Methode {
         }
     }
 }
+
+
 
 #[derive(Debug, Clone, PartialEq, FromArgs)]
 #[argh(subcommand, name = "dithering")]
@@ -161,6 +199,27 @@ fn main() {
                     utils::tramage_ordonne(&mut image_rgb8, &matrice); // Question 13
                 },
             }
+        }
+        Mode::DiffussionErreur(opts_diffusion_erreur) => {
+            println!("Mode diffusion d'erreur");
+            let couleurs = utils::creer_liste_couleurs();
+            let mut couleurs_palette = vec![];
+            for i in 0..opts_diffusion_erreur.n_couleurs {
+                couleurs_palette.push(couleurs[i].1);
+            }
+            println!("Les couleurs de la palette sont : {:?}", couleurs_palette);
+            
+            let matrice = match opts_diffusion_erreur.matrice {
+                MatriceDiffusionErreur::Simple2D => utils::simple_2_d(),
+                MatriceDiffusionErreur::FloydSteinberg => utils::floyd_steinberg(),
+                MatriceDiffusionErreur::JarvisJudiceNinke => utils::jarvis_judice_ninke(),
+                MatriceDiffusionErreur::Atkinson => utils::atkinson(),
+            };
+
+            println!("Matrice de diffusion d'erreur : {:?}", opts_diffusion_erreur.matrice);
+            utils::afficher_matrice(&matrice);
+            //utils::diffusion_erreur(&mut image_rgb8); //question 16
+            utils::diffusion_erreur_generique(&mut image_rgb8, couleurs_palette, matrice); // Question 20
         }
     }
 
